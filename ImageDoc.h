@@ -10,9 +10,13 @@ class ImageDoc
 public: // create from serialization only
 	ImageDoc();
 	~ImageDoc();
+	
 	//void getBMI();
 	//void getIMG();
-	void Initial();
+	void setBMI();
+	void changeBMI();
+	void deleteBMI();
+	void resize(int nw,int nh);
 	cv::Mat img;
 	//BITMAPINFO bmi;
 	BITMAPINFO* bmi;

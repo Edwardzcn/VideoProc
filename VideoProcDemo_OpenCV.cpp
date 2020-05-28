@@ -198,10 +198,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					// ImgDoc构造内容
 					//VidCap1 >> img; //获取第一帧图像并显示
 					VidCap1 >> imgdoc1->img;  // 获取第一帧图象
-					imgdoc1->Initial();
+					imgdoc1->setBMI();
+					if (imgdoc1->img.empty() == false)
+					{
+						if (vidEffect == VideoEffect::edge)
+						{
+							cv::Mat edgeY, edgeX;
+							cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
+							cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
+							imgdoc1->img = edgeX + edgeY;
+						}
 
-					//激发WM_PAINT时间，让窗口重绘
-					InvalidateRect(hWnd, NULL, false);
+						InvalidateRect(hWnd, NULL, false);
+					}
+					////激发WM_PAINT时间，让窗口重绘
+					//InvalidateRect(hWnd, NULL, false);
 				}
 				else
 				{
@@ -240,12 +251,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (VidCap1.isOpened() && playState == PlayState::playing)
 		{
 			VidCap1 >> imgdoc1->img;
-
 			if (imgdoc1->img.empty() == false)
 			{
 				if (vidEffect == VideoEffect::edge)
 				{
-					//cv::cvtColor(img, img, cv::COLOR_BGR2GRAY);
 					cv::Mat edgeY, edgeX;
 					cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
 					cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
@@ -316,6 +325,10 @@ void CenterPaint(HWND hWnd, HDC dc) {
 			nWidth = nWindowWidth;
 			nBeginWidth = 0;
 		}
+		imgdoc1->resize(nWidth, nHeight);
+		imgdoc1->changeBMI();
+		//DP3("%d %d %d\n", nBeginHeight, nWidth,nHeight);
+		//DP2("%d %d\n", imgdoc1->img.cols, imgdoc1->img.rows);
 
 		//StretchDIBits(
 		//	dc,
@@ -326,11 +339,11 @@ void CenterPaint(HWND hWnd, HDC dc) {
 		//	DIB_RGB_COLORS,
 		//	SRCCOPY
 		//);
-		DP3("%d %d %d\n", nBeginHeight, nWidth,nHeight);
 		StretchDIBits(
 			dc,
 			nBeginWidth, nBeginHeight, nWidth, nHeight,
 			0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
+			//0, 0, nWidth, nHeight,
 			imgdoc1->img.data,
 			imgdoc1->bmi,
 			DIB_RGB_COLORS,
