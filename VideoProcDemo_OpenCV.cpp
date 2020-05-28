@@ -302,7 +302,8 @@ void CenterPaint(HWND hWnd, HDC dc) {
 		// 获取窗口的宽和高度
 		//int nWindowWidth;
 		LPRECT rect = new tagRECT;
-		GetWindowRect(hWnd, rect);
+		// 使用 GetClientRect 而非 GetWindowRect
+		GetClientRect(hWnd, rect);
 		int nWindowWidth = rect->right - rect->left;
 		int nWindowHeight = rect->bottom - rect->top;
 		//DP2("%d %d\n", nWindowWidth, nWindowHeight);
