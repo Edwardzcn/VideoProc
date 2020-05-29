@@ -27,10 +27,13 @@
     <ClInclude Include="VideoProcDemo_OpenCV.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="ImageDoc.h">
+    <ClInclude Include="VideoManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="VideoManager.h">
+    <ClInclude Include="VideoData.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DataNode.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -38,10 +41,13 @@
     <ClCompile Include="VideoProcDemo_OpenCV.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="ImageDoc.cpp">
+    <ClCompile Include="VideoManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="VideoManager.cpp">
+    <ClCompile Include="VideoData.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DataNode.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -3,8 +3,9 @@
 
 #include "framework.h"
 #include "VideoProcDemo_OpenCV.h"
-//#include "shobjidl_core.h
-#include "ImageDoc.h"
+#include "shobjidl_core.h"
+//#include "DataNode.h"
+#include "VideoData.h"
 #include "VideoManager.h"
 #include <windowsx.h>
 
@@ -28,7 +29,9 @@ HINSTANCE hInst;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 
-ImageDoc* imgdoc1, * imgdoc2;
+
+//DataNode* imgdoc1, * imgdoc2;
+VideoData* coreData;
 VideoManager* vidm1, * vidm2;
 //cv::Mat img;
 
@@ -63,7 +66,7 @@ void CatchExit(HWND hWnd);
 // 菜单栏
 void CatchCommandAbout(HWND hWnd);
 void CatchCommandExit(HWND hWnd);
-void CatchCommandOpen(HWND hWnd, VideoManager*, ImageDoc*);
+void CatchCommandOpen(HWND hWnd, VideoManager*, DataNode*);
 void CatchCommandPlay(HWND hWnd);
 void CatchCommandPause(HWND hWnd);
 void CatchCommandStop(HWND hWnd);
@@ -87,8 +90,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_VIDEOPROCDEMOOPENCV, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
-	imgdoc1 = new ImageDoc();
-	imgdoc2 = new ImageDoc();
+	//imgdoc1 = new DataNode();
+	//imgdoc2 = new DataNode();
+	coreData = new VideoData();
 	vidm1 = new VideoManager();
 	vidm2 = new VideoManager();
 
@@ -191,7 +195,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_COMMAND:
 	{
-		WCHAR* fn = (WCHAR*)vidm1->vidName;
+		//WCHAR* fn = (WCHAR*)vidm1->vidName;
 		int wmId = LOWORD(wParam);
 		// 分析菜单选择:
 		switch (wmId)
@@ -203,7 +207,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CatchCommandExit(hWnd);
 			break;
 		case IDM_OPEN_VID1:
-			CatchCommandOpen(hWnd,vidm1,imgdoc1);
+			CatchCommandOpen(hWnd, vidm1, coreData->vidNode1);
+			break;
+		case IDM_OPEN_VID2:
+			CatchCommandOpen(hWnd, vidm2, coreData->vidNode2);
 			break;
 		case IDM_PLAY_VID:
 			CatchCommandPlay(hWnd);
@@ -215,10 +222,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CatchCommandStop(hWnd);
 			break;
 		case IDM_EFFECT_NONE:
-			imgdoc1->vidEffect = VideoEffect::no;
+			coreData->vidNode1->vidEffect = VideoEffect::no;
 			break;
 		case IDM_EFFECT_EDGE:
-			imgdoc1->vidEffect = VideoEffect::edge;
+			coreData->vidNode1->vidEffect = VideoEffect::edge;
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
@@ -246,69 +253,121 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 void CatchSize(HWND hWnd) {
 	//if (vidm1->vidCap.isOpened()) {
-	//	imgdoc1->changeBMI();
+	//	coreData->vidNode1->changeBMI();
 	//}
-	if (imgdoc1->img.rows > 0) {
-		// 有图象
-		// 获取窗口的宽和高度
-		//int nWindowWidth;
-		LPRECT rect = new tagRECT;
-		// 使用 GetClientRect 而非 GetWindowRect
-		GetClientRect(hWnd, rect);
-		int nWindowWidth = rect->right - rect->left;
-		int nWindowHeight = rect->bottom - rect->top;
-		//DP2("%d %d\n", nWindowWidth, nWindowHeight);
-		double fWidthTimes = (double)nWindowWidth / imgdoc1->img.cols;
-		double fHeightTimes = (double)nWindowHeight / imgdoc1->img.rows;
-
-		DP2("bili %f %f\n", fWidthTimes, fHeightTimes);
+	LPRECT rect = new tagRECT;
+	// 使用 GetClientRect 而非 GetWindowRect
+	GetClientRect(hWnd, rect);
+	int nWindowWidth = rect->right - rect->left;
+	int nWindowHeight = rect->bottom - rect->top;
+	coreData->setClientSize(nWindowWidth, nWindowHeight);
+	if (coreData->vidNode1->img.rows > 0) {
+		// 倍数放缩
+		double fWidthTimes = (double)nWindowWidth / coreData->vidNode1->img.cols;
+		double fHeightTimes = (double)nWindowHeight / coreData->vidNode1->img.rows;
 		int nBeginWidth, nBeginHeight, nWidth, nHeight;
 		if (fWidthTimes > fHeightTimes) {
 			// Width加黑边
-			nWidth = (int)(fHeightTimes * imgdoc1->img.cols);
+			nWidth = (int)(fHeightTimes * coreData->vidNode1->img.cols);
 			nBeginWidth = (nWindowWidth - nWidth) >> 1;
 			nHeight = nWindowHeight;
 			nBeginHeight = 0;
 		}
 		else {
 			// Height加黑边
-			nHeight = (int)(fWidthTimes * imgdoc1->img.rows);
+			nHeight = (int)(fWidthTimes * coreData->vidNode1->img.rows);
 			nBeginHeight = (nWindowHeight - nHeight) >> 1;
 			nWidth = nWindowWidth;
 			nBeginWidth = 0;
 		}
-		imgdoc1->setClientSize(nWindowWidth, nWindowHeight);
-		imgdoc1->setBeginSize(nBeginWidth, nBeginHeight);
-		imgdoc1->setOutputSize(nWidth, nHeight);
+
+
+		
+		coreData->vidNode1->setBeginSize(nBeginWidth, nBeginHeight);
+		coreData->vidNode1->setOutputSize(nWidth, nHeight);
 		// 连锁绑定 当改变大小的时候
-		imgdoc1->imageResize();
-		imgdoc1->setBMI();
-		//imgdoc1->changeBMI();
-		DP0("RESIZE\n");
+		coreData->vidNode1->imageResize();
+		coreData->vidNode1->setBMI();
+		//coreData->vidNode1->changeBMI();
+		DP0("IMG1 RESIZE\n");
+		//InvalidateRect(hWnd, NULL, false);
+	}
+	if (coreData->vidNode2->img.rows > 0) {
+		// 右上角固定倍数缩放
+		// 0.25
+		double ftimes = 0.25;
+		double fWidthTimes = (double)nWindowWidth / coreData->vidNode2->img.cols;
+		double fHeightTimes = (double)nWindowHeight / coreData->vidNode2->img.rows;
+		int nBeginWidth, nBeginHeight, nWidth, nHeight;
+		if (fWidthTimes > fHeightTimes) {
+			// Width加黑边
+			nWidth = (int)(ftimes * fHeightTimes * coreData->vidNode2->img.cols);
+			nHeight = (int)(ftimes * nWindowHeight);
+			//nBeginWidth = (nWindowWidth - nWidth) >> 1;
+			nBeginWidth = nWindowWidth - nWidth;
+			nBeginHeight = 0;
+		}
+		else {
+			// Height加黑边
+			nHeight = (int)(ftimes*fWidthTimes * coreData->vidNode2->img.rows);
+			nWidth = (int)(ftimes* nWindowWidth);
+			//nBeginWidth = 0;
+			//nBeginHeight = (nWindowHeight - nHeight) >> 1;
+			nBeginWidth = nWindowWidth - nWidth;
+			nBeginHeight = 0;
+		}
+
+		coreData->vidNode2->setBeginSize(nBeginWidth, nBeginHeight);
+		coreData->vidNode2->setOutputSize(nWidth, nHeight);
+		// 连锁绑定 当改变大小的时候
+		coreData->vidNode2->imageResize();
+		coreData->vidNode2->setBMI();
+		//coreData->vidNode2->changeBMI();
+		DP0("IMG2 RESIZE\n");
+
+#ifdef _DEBUG
+		DP2("img2 origin opw=%d oph%d\n", coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight);
+#endif // DEBUG
 		//InvalidateRect(hWnd, NULL, false);
 	}
 }
 
-void CatchTimer(HWND hWnd)
-{
-	//DP0("WM_TIMER\n");
-	if (vidm1->vidCap.isOpened() && vidm1->vidState == PlayState::playing)
+bool LoadVideoImage(VideoManager* vm, DataNode* imd) {
+	if (vm->vidCap.isOpened() && vm->vidState == PlayState::playing)
 	{
-		vidm1->vidCap >> imgdoc1->img;
-		if (imgdoc1->img.empty() == false)
+		vm->vidCap >> imd->img;
+#ifdef _DEBUG
+		DP0("Load Image\n")
+#endif // _DEBUG
+
+		if (imd->img.empty() == false)
 		{
 
-			imgdoc1->imageConvert();
-			if (imgdoc1->vidEffect == VideoEffect::edge)
+			imd->imageConvert();
+			if (imd->vidEffect == VideoEffect::edge)
 			{
 				cv::Mat edgeY, edgeX;
-				cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
-				cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
-				imgdoc1->img = edgeX + edgeY;
+				cv::Sobel(imd->img, edgeY, CV_8U, 1, 0);
+				cv::Sobel(imd->img, edgeX, CV_8U, 0, 1);
+				imd->img = edgeX + edgeY;
 			}
-
-			InvalidateRect(hWnd, NULL, false);
+#ifdef _DEBUG
+			DP0("Load Success\n");
+#endif // _DEBUG
+			return true;
 		}
+		return false;
+	}
+	return false;
+}
+
+void CatchTimer(HWND hWnd)
+{
+	// 两个Video Manager独立检测
+	bool result1 = LoadVideoImage(vidm1, coreData->vidNode1);
+	bool result2 = LoadVideoImage(vidm2, coreData->vidNode2);
+	if (result1 || result2) {
+		InvalidateRect(hWnd, NULL, false);
 	}
 }
 
@@ -338,15 +397,18 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 	SelectObject(mdc, hbitmap);
 	// 向dc绘图
 	DirectPaint(hWnd, mdc);
+	// 整体拷贝至输出
+	// bug问题
 	StretchBlt(
 		dc,
-		0, 0, imgdoc1->nClientWidth, imgdoc1->nClientHeight,
+		0, 0, coreData->nClientWidth, coreData->nClientHeight,
 		//0, 0, 500, 500,
 		mdc,
-		0, 0, imgdoc1->nClientWidth, imgdoc1->nClientHeight,
+		0, 0, coreData->nClientWidth, coreData->nClientHeight,
 		//0, 0, 500, 500,
 		SRCCOPY
 	);
+
 	// 恢复内存原始数据
 	// 删除资源
 	DeleteObject(hbitmap);
@@ -354,25 +416,63 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 }
 
 void DirectPaint(HWND hWnd, HDC dc) {
-	if (imgdoc1->img.rows > 0)
+	if (coreData->vidNode1->img.rows > 0)
 	{
 		//// 这里要set不可以用change
-		imgdoc1->imageResize();
-		imgdoc1->setBMI();
+		coreData->vidNode1->imageResize();
+		coreData->vidNode1->setBMI();
+		//coreData->vidNode2->imageResize();
+		//coreData->vidNode2->setBMI();
 
 #ifdef _DEBUG
-		DP2("bili %d %d\n", imgdoc1->outputWidth, imgdoc1->outputHeight);
+		DP2("img1 opw=%d oph%d\n", coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight);
 #endif // DEBUG
 
 
 		StretchDIBits(
 			dc,
-			imgdoc1->nBeginWidth, imgdoc1->nBeginHeight, imgdoc1->outputWidth, imgdoc1->outputHeight,
+			coreData->vidNode1->nBeginWidth, coreData->vidNode1->nBeginHeight, coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight,
 			//0,0,500,500,
-			0, 0, imgdoc1->outputWidth, imgdoc1->outputHeight,
+			0, 0, coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight,
 			//0,0,500,500,
-			imgdoc1->img.data,
-			imgdoc1->bmi,
+			coreData->vidNode1->img.data,
+			coreData->vidNode1->bmi,
+			DIB_RGB_COLORS,
+			SRCCOPY
+		);
+	}
+	if (coreData->vidNode2->img.rows > 0)
+	{
+		//// 这里要set不可以用change
+		//coreData->vidNode1->imageResize();
+		//coreData->vidNode1->setBMI();
+		coreData->vidNode2->imageResize();
+		coreData->vidNode2->setBMI();
+
+#ifdef _DEBUG
+		DP2("img2 opw=%d oph%d\n", coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight);
+#endif // DEBUG
+
+
+		//StretchDIBits(
+		//	dc,
+		//	coreData->vidNode1->nBeginWidth, coreData->vidNode1->nBeginHeight, coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight,
+		//	//0,0,500,500,
+		//	0, 0, coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight,
+		//	//0,0,500,500,
+		//	coreData->vidNode1->img.data,
+		//	coreData->vidNode1->bmi,
+		//	DIB_RGB_COLORS,
+		//	SRCCOPY
+		//);
+		StretchDIBits(
+			dc,
+			coreData->vidNode2->nBeginWidth, coreData->vidNode2->nBeginHeight, coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight,
+			//coreData->vidNode2->nClientWidth-300,0,300,200,
+			0, 0, coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight,
+			//0,0,500,500,
+			coreData->vidNode2->img.data,
+			coreData->vidNode2->bmi,
 			DIB_RGB_COLORS,
 			SRCCOPY
 		);
@@ -466,7 +566,7 @@ void CatchCommandExit(HWND hWnd)
 	DestroyWindow(hWnd);
 }
 
-void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
+void CatchCommandOpen(HWND hWnd, VideoManager* vm, DataNode* imgd)
 {
 	WCHAR* fn = (WCHAR*)vm->vidName;
 	if (OpenVideoFile(hWnd, &fn))
@@ -478,9 +578,13 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
 			// ImgDoc构造内容
 			//vidm1->vidCap >> img; //获取第一帧图像并显示
 			vm->vidCap >> imgd->img;  // 获取第一帧图象
-			//imgdoc1->setBMI();
+#ifdef _DEBUG
+			DP0("Load First Image\n");
+#endif // _DEBUG
+
+			//coreData->vidNode1->setBMI();
 			//CatchSize(hWnd);
-			//imgdoc1->imageConvert();
+			//coreData->vidNode1->imageConvert();
 			if (imgd->img.empty() == false)
 			{
 				imgd->imageConvert();
@@ -491,8 +595,9 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
 					cv::Sobel(imgd->img, edgeX, CV_8U, 0, 1);
 					imgd->img = edgeX + edgeY;
 				}
+				//TODO
 				CatchSize(hWnd);
-				InvalidateRect(hWnd, NULL, false);
+				//InvalidateRect(hWnd, NULL, false);
 			}
 			////激发WM_PAINT时间，让窗口重绘
 			//InvalidateRect(hWnd, NULL, false);
@@ -512,15 +617,19 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
 void CatchCommandPlay(HWND hWnd)
 {
 	vidm1->vidState = PlayState::playing;
+	vidm2->vidState = PlayState::playing;
 }
 
 void CatchCommandPause(HWND hWnd)
 {
 	vidm1->vidState = PlayState::paused;
+	vidm2->vidState = PlayState::paused;
 }
 
 void CatchCommandStop(HWND hWnd)
 {
 	vidm1->vidState = PlayState::stopped;
 	vidm1->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+	vidm2->vidState = PlayState::stopped;
+	vidm2->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
 }
