@@ -191,7 +191,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_COMMAND:
 	{
-		WCHAR* fn = (WCHAR*)vidm1->vidName;
+		//WCHAR* fn = (WCHAR*)vidm1->vidName;
 		int wmId = LOWORD(wParam);
 		// 分析菜单选择:
 		switch (wmId)
@@ -203,7 +203,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CatchCommandExit(hWnd);
 			break;
 		case IDM_OPEN_VID1:
-			CatchCommandOpen(hWnd,vidm1,imgdoc1);
+			CatchCommandOpen(hWnd, vidm1, imgdoc1);
+			break;
+		case IDM_OPEN_VID2:
+			CatchCommandOpen(hWnd, vidm2, imgdoc2);
 			break;
 		case IDM_PLAY_VID:
 			CatchCommandPlay(hWnd);
@@ -284,31 +287,79 @@ void CatchSize(HWND hWnd) {
 		imgdoc1->imageResize();
 		imgdoc1->setBMI();
 		//imgdoc1->changeBMI();
-		DP0("RESIZE\n");
+		DP0("IMG1 RESIZE\n");
+		//InvalidateRect(hWnd, NULL, false);
+	}
+	if (imgdoc2->img.rows > 0) {
+		// 有图象
+		// 获取窗口的宽和高度
+		//int nWindowWidth;
+		LPRECT rect = new tagRECT;
+		// 使用 GetClientRect 而非 GetWindowRect
+		GetClientRect(hWnd, rect);
+		int nWindowWidth = rect->right - rect->left;
+		int nWindowHeight = rect->bottom - rect->top;
+		//DP2("%d %d\n", nWindowWidth, nWindowHeight);
+		double fWidthTimes = (double)nWindowWidth / imgdoc2->img.cols;
+		double fHeightTimes = (double)nWindowHeight / imgdoc2->img.rows;
+
+		DP2("bili %f %f\n", fWidthTimes, fHeightTimes);
+		int nBeginWidth, nBeginHeight, nWidth, nHeight;
+		if (fWidthTimes > fHeightTimes) {
+			// Width加黑边
+			nWidth = (int)(fHeightTimes * imgdoc2->img.cols);
+			nBeginWidth = (nWindowWidth - nWidth) >> 1;
+			nHeight = nWindowHeight;
+			nBeginHeight = 0;
+		}
+		else {
+			// Height加黑边
+			nHeight = (int)(fWidthTimes * imgdoc2->img.rows);
+			nBeginHeight = (nWindowHeight - nHeight) >> 1;
+			nWidth = nWindowWidth;
+			nBeginWidth = 0;
+		}
+		imgdoc2->setClientSize(nWindowWidth, nWindowHeight);
+		imgdoc2->setBeginSize(nBeginWidth, nBeginHeight);
+		imgdoc2->setOutputSize(nWidth, nHeight);
+		// 连锁绑定 当改变大小的时候
+		imgdoc2->imageResize();
+		imgdoc2->setBMI();
+		//imgdoc2->changeBMI();
+		DP0("IMG 2RESIZE\n");
 		//InvalidateRect(hWnd, NULL, false);
 	}
 }
 
-void CatchTimer(HWND hWnd)
-{
-	//DP0("WM_TIMER\n");
-	if (vidm1->vidCap.isOpened() && vidm1->vidState == PlayState::playing)
+bool LoadVideoImage(VideoManager* vm, ImageDoc* imd) {
+	if (vm->vidCap.isOpened() && vm->vidState == PlayState::playing)
 	{
-		vidm1->vidCap >> imgdoc1->img;
-		if (imgdoc1->img.empty() == false)
+		vm->vidCap >> imd->img;
+		if (imd->img.empty() == false)
 		{
 
-			imgdoc1->imageConvert();
-			if (imgdoc1->vidEffect == VideoEffect::edge)
+			imd->imageConvert();
+			if (imd->vidEffect == VideoEffect::edge)
 			{
 				cv::Mat edgeY, edgeX;
-				cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
-				cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
-				imgdoc1->img = edgeX + edgeY;
+				cv::Sobel(imd->img, edgeY, CV_8U, 1, 0);
+				cv::Sobel(imd->img, edgeX, CV_8U, 0, 1);
+				imd->img = edgeX + edgeY;
 			}
-
-			InvalidateRect(hWnd, NULL, false);
+			return true;
 		}
+		return false;
+	}
+	return false;
+}
+
+void CatchTimer(HWND hWnd)
+{
+	// 两个Video Manager独立检测
+	bool result1 = LoadVideoImage(vidm1, imgdoc1);
+	bool result2 = LoadVideoImage(vidm2, imgdoc2);
+	if (result1 || result2) {
+		InvalidateRect(hWnd, NULL, false);
 	}
 }
 
@@ -338,6 +389,7 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 	SelectObject(mdc, hbitmap);
 	// 向dc绘图
 	DirectPaint(hWnd, mdc);
+	// 整体拷贝至输出
 	StretchBlt(
 		dc,
 		0, 0, imgdoc1->nClientWidth, imgdoc1->nClientHeight,
@@ -347,6 +399,7 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 		//0, 0, 500, 500,
 		SRCCOPY
 	);
+
 	// 恢复内存原始数据
 	// 删除资源
 	DeleteObject(hbitmap);
@@ -359,9 +412,11 @@ void DirectPaint(HWND hWnd, HDC dc) {
 		//// 这里要set不可以用change
 		imgdoc1->imageResize();
 		imgdoc1->setBMI();
+		//imgdoc2->imageResize();
+		//imgdoc2->setBMI();
 
 #ifdef _DEBUG
-		DP2("bili %d %d\n", imgdoc1->outputWidth, imgdoc1->outputHeight);
+		DP2("img1 opw=%d oph%d\n", imgdoc1->outputWidth, imgdoc1->outputHeight);
 #endif // DEBUG
 
 
@@ -373,6 +428,54 @@ void DirectPaint(HWND hWnd, HDC dc) {
 			//0,0,500,500,
 			imgdoc1->img.data,
 			imgdoc1->bmi,
+			DIB_RGB_COLORS,
+			SRCCOPY
+		);
+		//StretchDIBits(
+		//	dc,
+		//	imgdoc2->nBeginWidth, imgdoc2->nBeginHeight, imgdoc2->outputWidth, imgdoc2->outputHeight,
+		//	//1000,0,200,200,
+		//	0, 0, imgdoc2->outputWidth, imgdoc2->outputHeight,
+		//	//0,0,500,500,
+		//	imgdoc2->img.data,
+		//	imgdoc2->bmi,
+		//	DIB_RGB_COLORS,
+		//	SRCCOPY
+		//);
+
+	}
+	if (imgdoc2->img.rows > 0)
+	{
+		//// 这里要set不可以用change
+		//imgdoc1->imageResize();
+		//imgdoc1->setBMI();
+		imgdoc2->imageResize();
+		imgdoc2->setBMI();
+
+#ifdef _DEBUG
+		DP2("img2 opw=%d oph%d\n", imgdoc1->outputWidth, imgdoc1->outputHeight);
+#endif // DEBUG
+
+
+		//StretchDIBits(
+		//	dc,
+		//	imgdoc1->nBeginWidth, imgdoc1->nBeginHeight, imgdoc1->outputWidth, imgdoc1->outputHeight,
+		//	//0,0,500,500,
+		//	0, 0, imgdoc1->outputWidth, imgdoc1->outputHeight,
+		//	//0,0,500,500,
+		//	imgdoc1->img.data,
+		//	imgdoc1->bmi,
+		//	DIB_RGB_COLORS,
+		//	SRCCOPY
+		//);
+		StretchDIBits(
+			dc,
+			//imgdoc2->nBeginWidth, imgdoc2->nBeginHeight, imgdoc2->outputWidth, imgdoc2->outputHeight,
+			imgdoc2->nClientWidth-300,0,300,200,
+			0, 0, imgdoc2->outputWidth, imgdoc2->outputHeight,
+			//0,0,500,500,
+			imgdoc2->img.data,
+			imgdoc2->bmi,
 			DIB_RGB_COLORS,
 			SRCCOPY
 		);
@@ -491,6 +594,7 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
 					cv::Sobel(imgd->img, edgeX, CV_8U, 0, 1);
 					imgd->img = edgeX + edgeY;
 				}
+				//TODO
 				CatchSize(hWnd);
 				InvalidateRect(hWnd, NULL, false);
 			}
@@ -512,15 +616,19 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
 void CatchCommandPlay(HWND hWnd)
 {
 	vidm1->vidState = PlayState::playing;
+	vidm2->vidState = PlayState::playing;
 }
 
 void CatchCommandPause(HWND hWnd)
 {
 	vidm1->vidState = PlayState::paused;
+	vidm2->vidState = PlayState::paused;
 }
 
 void CatchCommandStop(HWND hWnd)
 {
 	vidm1->vidState = PlayState::stopped;
 	vidm1->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+	vidm2->vidState = PlayState::stopped;
+	vidm2->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
 }
