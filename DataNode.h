@@ -10,15 +10,14 @@ enum VideoEffect
 	no, edge
 };
 
-class ImageDoc
+class DataNode
 {
 public: // create from serialization only
-	ImageDoc();
-	~ImageDoc();
+	DataNode();
+	~DataNode();
 	
 	//void getBMI();
 	//void getIMG();
-	void setClientSize(int nw, int nh);
 	void setBeginSize(int nw, int nh);
 	void setOutputSize(int nw,int nh);
 	void setBMI();
@@ -31,9 +30,8 @@ public: // create from serialization only
 	BITMAPINFO* bmi;
 	//int nchannel;	
 	
-	// 客户端大小
-	int nClientWidth;
-	int nClientHeight;
+
+
 	// 输出图象大小
 	int outputWidth;
 	int outputHeight;
@@ -42,7 +40,6 @@ public: // create from serialization only
 	int nBeginHeight;
 	
 	// 滤镜效果
-
 	VideoEffect vidEffect;    // 视频画面效果
 };
 

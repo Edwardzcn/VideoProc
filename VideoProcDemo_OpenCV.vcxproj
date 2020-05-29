@@ -157,14 +157,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
-    <ClInclude Include="ImageDoc.h" />
+    <ClInclude Include="DataNode.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="VideoData.h" />
     <ClInclude Include="VideoManager.h" />
     <ClInclude Include="VideoProcDemo_OpenCV.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ImageDoc.cpp" />
+    <ClCompile Include="DataNode.cpp" />
+    <ClCompile Include="VideoData.cpp" />
     <ClCompile Include="VideoManager.cpp" />
     <ClCompile Include="VideoProcDemo_OpenCV.cpp" />
   </ItemGroup>
