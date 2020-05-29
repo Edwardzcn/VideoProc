@@ -1,4 +1,9 @@
 #pragma once
+#include <windowsx.h>
+#include "framework.h"
+#include "VideoProcDemo_OpenCV.h"
+#include "shobjidl_core.h"
+#include "opencv2/opencv.hpp" 
 #include "DataNode.h"
 
 class VideoData

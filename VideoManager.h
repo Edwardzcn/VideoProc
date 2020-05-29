@@ -8,11 +8,12 @@
                   
 
 
-enum PlayState
+enum PLAY_STATE
 {
-	playing, paused, stopped
+	PLAYING, 
+	PAUSED,
+	STOPPED
 };
-//PlayState playState = PlayState::stopped;       // 播放状态     
 
 
 class VideoManager
@@ -21,7 +22,7 @@ public:
 	// 成员
 	cv::VideoCapture vidCap;						// 视频1的读取器
 	WCHAR vidName[1024];                   // 视频的文件路径和文件名
-	PlayState vidState;
+	PLAY_STATE vidState;
 
 	// 方法
 	VideoManager();

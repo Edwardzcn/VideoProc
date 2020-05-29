@@ -2,7 +2,7 @@
 
 VideoManager::VideoManager()
 {
-	this->vidState = PlayState::paused;
+	this->vidState = PLAY_STATE::PAUSED;
 }
 
 VideoManager::~VideoManager()

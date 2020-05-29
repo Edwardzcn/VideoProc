@@ -2,7 +2,7 @@
 
 DataNode::DataNode()
 {
-	this->vidEffect = VideoEffect::no;
+	this->vidEffect = VideoEffect::EFFECT_NONE;
 }
 
 DataNode::~DataNode()
@@ -66,7 +66,7 @@ void DataNode::imageConvert()
 	switch (this->img.channels())
 	{
 	case 1:
-		cv::cvtColor(this->img, this->img, cv::COLOR_GRAY2BGR); // GRAY单通道
+		cv::cvtColor(this->img, this->img, cv::COLOR_GRAY2BGRA); // GRAY单通道
 		break;
 	case 3:
 		cv::cvtColor(this->img, this->img, cv::COLOR_BGR2BGRA);  // BGR三通道
@@ -74,4 +74,9 @@ void DataNode::imageConvert()
 	default:
 		break;
 	}
+}
+
+void DataNode::imageConvert(cv::ColorConversionCodes code)
+{
+	cv::cvtColor(this->img, this->img, code);
 }
