@@ -47,22 +47,28 @@ BEGIN
     POPUP "文件(&F)"
     BEGIN
         MENUITEM "打开视频文件1",                     IDM_OPEN_VID1
+        MENUITEM "打开视频文件2",                     IDM_OPEN_VID2
         MENUITEM "退出(&X)",                      IDM_EXIT
     END
     POPUP "视频播放"
     BEGIN
-        MENUITEM "播放",                          32775
+        MENUITEM "播放",                          IDM_PLAY_VID
         MENUITEM "暂停",                          IDM_PAUSE_VID
         MENUITEM "停止",                          IDM_STOP_VID
     END
     POPUP "滤镜效果"
     BEGIN
-        MENUITEM "无效果",                         IDM_OPEN_VID2
-        MENUITEM "边缘图效果",                       IDM_EDGE_EFFECT
+        MENUITEM "无效果",                         IDM_EFFECT_EDGE
+        MENUITEM "边缘图效果",                       IDM_EFFECT_EDGE
+        MENUITEM "高斯模糊",                        IDM_EFFECT_GAUSSIAN
     END
     POPUP "帮助(&H)"
     BEGIN
         MENUITEM "关于(&A) ...",                  IDM_ABOUT
+    END
+    POPUP "播放方式"
+    BEGIN
+        MENUITEM "循环播放",                        ID_32787
     END
 END
 

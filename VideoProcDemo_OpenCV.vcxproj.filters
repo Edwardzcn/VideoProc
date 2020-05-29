@@ -30,12 +30,18 @@
     <ClInclude Include="ImageDoc.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="VideoManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VideoProcDemo_OpenCV.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="ImageDoc.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="VideoManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
