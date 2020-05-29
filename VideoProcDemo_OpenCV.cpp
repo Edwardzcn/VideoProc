@@ -5,6 +5,7 @@
 #include "VideoProcDemo_OpenCV.h"
 //#include "shobjidl_core.h
 #include "ImageDoc.h"
+#include "VideoManager.h"
 #include <windowsx.h>
 
 #include "opencv2/opencv.hpp" 
@@ -28,16 +29,17 @@ WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 
 ImageDoc* imgdoc1, * imgdoc2;
+VideoManager* vidm1, * vidm2;
 //cv::Mat img;
 
 
-WCHAR FileNameOfVideo1[1024];                   // 视频1的文件路径和文件名
-cv::VideoCapture VidCap1;                       // 视频1的读取器
-enum PlayState
-{
-	playing, paused, stopped
-};
-PlayState playState = PlayState::stopped;       // 播放状态     
+//WCHAR FileNameOfVideo1[1024];                   // 视频1的文件路径和文件名
+//cv::VideoCapture vidm1->vidCap;                       // 视频1的读取器
+//enum PlayState
+//{
+//	playing, paused, stopped
+//};
+//PlayState vidm1->vidState = PlayState::stopped;       // 播放状态     
 
 
 // 此代码模块中包含的函数的前向声明:
@@ -53,8 +55,18 @@ std::string WCHAR2String(LPCWSTR pwszSrc);
 void DoubleBufferPaint(HWND hWnd, HDC dc);
 void DirectPaint(HWND hWnd, HDC dc);
 
-// 消息相应函数
-void OnChangeSize(HWND hWnd);
+// 相应函数
+void CatchSize(HWND hWnd);
+void CatchTimer(HWND hWnd);
+void CatchPaint(HWND hWnd);
+void CatchExit(HWND hWnd);
+// 菜单栏
+void CatchCommandAbout(HWND hWnd);
+void CatchCommandExit(HWND hWnd);
+void CatchCommandOpen(HWND hWnd, VideoManager*, ImageDoc*);
+void CatchCommandPlay(HWND hWnd);
+void CatchCommandPause(HWND hWnd);
+void CatchCommandStop(HWND hWnd);
 
 
 
@@ -77,6 +89,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	MyRegisterClass(hInstance);
 	imgdoc1 = new ImageDoc();
 	imgdoc2 = new ImageDoc();
+	vidm1 = new VideoManager();
+	vidm2 = new VideoManager();
 
 	// 执行应用程序初始化:
 	if (!InitInstance(hInstance, nCmdShow))
@@ -152,7 +166,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
-
 	SetTimer(hWnd, 1, 40, NULL);
 
 	return TRUE;
@@ -172,78 +185,39 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	WCHAR* fn = (WCHAR*)FileNameOfVideo1;
-	bool result;
+
 
 	switch (message)
 	{
 	case WM_COMMAND:
 	{
+		WCHAR* fn = (WCHAR*)vidm1->vidName;
 		int wmId = LOWORD(wParam);
 		// 分析菜单选择:
 		switch (wmId)
 		{
 		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+			CatchCommandAbout(hWnd);
 			break;
 		case IDM_EXIT:
-			DestroyWindow(hWnd);
+			CatchCommandExit(hWnd);
 			break;
 		case IDM_OPEN_VID1:
-			result = OpenVideoFile(hWnd, &fn);
-			if (result)
-			{
-				//img = cv::imread(WCHAR2String(fn));
-				bool opened = VidCap1.open(WCHAR2String(fn));
-				if (opened)
-				{
-					// ImgDoc构造内容
-					//VidCap1 >> img; //获取第一帧图像并显示
-					VidCap1 >> imgdoc1->img;  // 获取第一帧图象
-					//imgdoc1->setBMI();
-					//OnChangeSize(hWnd);
-					//imgdoc1->imageConvert();
-					if (imgdoc1->img.empty() == false)
-					{
-						imgdoc1->imageConvert();
-						if (imgdoc1->vidEffect == VideoEffect::edge)
-						{
-							cv::Mat edgeY, edgeX;
-							cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
-							cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
-							imgdoc1->img = edgeX + edgeY;
-						}
-						OnChangeSize(hWnd);
-						InvalidateRect(hWnd, NULL, false);
-					}
-					////激发WM_PAINT时间，让窗口重绘
-					//InvalidateRect(hWnd, NULL, false);
-				}
-				else
-				{
-					MessageBox(
-						hWnd,
-						L"视频未能打开",
-						L"错误提示",
-						MB_OK
-					);
-				}
-			}
+			CatchCommandOpen(hWnd,vidm1,imgdoc1);
 			break;
 		case IDM_PLAY_VID:
-			playState = PlayState::playing;
+			CatchCommandPlay(hWnd);
 			break;
 		case IDM_PAUSE_VID:
-			playState = PlayState::paused;
+			CatchCommandPause(hWnd);
 			break;
 		case IDM_STOP_VID:
-			playState = PlayState::stopped;
-			VidCap1.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+			CatchCommandStop(hWnd);
 			break;
-		case IDM_NO_EFFECT:
+		case IDM_EFFECT_NONE:
 			imgdoc1->vidEffect = VideoEffect::no;
 			break;
-		case IDM_EDGE_EFFECT:
+		case IDM_EFFECT_EDGE:
 			imgdoc1->vidEffect = VideoEffect::edge;
 			break;
 		default:
@@ -252,44 +226,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	break;
 	case WM_TIMER:
-		//DP0("WM_TIMER\n");
-		if (VidCap1.isOpened() && playState == PlayState::playing)
-		{
-			VidCap1 >> imgdoc1->img;
-			if (imgdoc1->img.empty() == false)
-			{
-				
-				imgdoc1->imageConvert();
-				if (imgdoc1->vidEffect == VideoEffect::edge)
-				{
-					cv::Mat edgeY, edgeX;
-					cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
-					cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
-					imgdoc1->img = edgeX + edgeY;
-				}
-				
-				InvalidateRect(hWnd, NULL, false);
-			}
-		}
+		CatchTimer(hWnd);
 		break;
 	case WM_PAINT:
-	{
-		//DP0("WM_PAINT\n");
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
-		// TODO: 在此处添加使用 hdc 的任何绘图代码...
-		// 双缓冲
-		DoubleBufferPaint(hWnd, hdc);
-		// 非双缓冲
-		//DirectPaint(hWnd, hdc);
-		EndPaint(hWnd, &ps);
-	}
-	break;
+		CatchPaint(hWnd);
+		break;
 	case WM_SIZE:
-		OnChangeSize(hWnd);
+		CatchSize(hWnd);
 		break;
 	case WM_DESTROY:
-		PostQuitMessage(0);
+		CatchExit(hWnd);
 		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -297,11 +243,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-// 哪些在Time里做
-// 哪些在PAINT里做
 
-void OnChangeSize(HWND hWnd) {
-	//if (VidCap1.isOpened()) {
+void CatchSize(HWND hWnd) {
+	//if (vidm1->vidCap.isOpened()) {
 	//	imgdoc1->changeBMI();
 	//}
 	if (imgdoc1->img.rows > 0) {
@@ -338,11 +282,52 @@ void OnChangeSize(HWND hWnd) {
 		imgdoc1->setOutputSize(nWidth, nHeight);
 		// 连锁绑定 当改变大小的时候
 		imgdoc1->imageResize();
-		imgdoc1->setBMI(); 
+		imgdoc1->setBMI();
 		//imgdoc1->changeBMI();
 		DP0("RESIZE\n");
 		//InvalidateRect(hWnd, NULL, false);
 	}
+}
+
+void CatchTimer(HWND hWnd)
+{
+	//DP0("WM_TIMER\n");
+	if (vidm1->vidCap.isOpened() && vidm1->vidState == PlayState::playing)
+	{
+		vidm1->vidCap >> imgdoc1->img;
+		if (imgdoc1->img.empty() == false)
+		{
+
+			imgdoc1->imageConvert();
+			if (imgdoc1->vidEffect == VideoEffect::edge)
+			{
+				cv::Mat edgeY, edgeX;
+				cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
+				cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
+				imgdoc1->img = edgeX + edgeY;
+			}
+
+			InvalidateRect(hWnd, NULL, false);
+		}
+	}
+}
+
+void CatchPaint(HWND hWnd)
+{
+	//DP0("WM_PAINT\n");
+	PAINTSTRUCT ps;
+	HDC hdc = BeginPaint(hWnd, &ps);
+	// TODO: 在此处添加使用 hdc 的任何绘图代码...
+	// 双缓冲
+	DoubleBufferPaint(hWnd, hdc);
+	// 非双缓冲
+	//DirectPaint(hWnd, hdc);
+	EndPaint(hWnd, &ps);
+}
+
+void CatchExit(HWND hWnd)
+{
+	PostQuitMessage(0);
 }
 
 void DoubleBufferPaint(HWND hWnd, HDC dc) {
@@ -371,17 +356,6 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 void DirectPaint(HWND hWnd, HDC dc) {
 	if (imgdoc1->img.rows > 0)
 	{
-		//switch (imgdoc1->img.channels())
-		//{
-		//case 1:
-		//	cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_GRAY2BGR); // GRAY单通道
-		//	break;
-		//case 3:
-		//	cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_BGR2BGRA);  // BGR三通道
-		//	break;
-		//default:
-		//	break;
-		//}
 		//// 这里要set不可以用change
 		imgdoc1->imageResize();
 		imgdoc1->setBMI();
@@ -405,77 +379,6 @@ void DirectPaint(HWND hWnd, HDC dc) {
 
 	}
 }
-//
-//void DirectPaint(HWND hWnd, HDC dc) {
-//	if (imgdoc1->img.rows > 0)
-//	{
-//		switch (imgdoc1->img.channels())
-//		{
-//		case 1:
-//			cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_GRAY2BGR); // GRAY单通道
-//			break;
-//		case 3:
-//			cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_BGR2BGRA);  // BGR三通道
-//			break;
-//		default:
-//			break;
-//		}
-//		// 获取窗口的宽和高度
-//		//int nWindowWidth;
-//		LPRECT rect = new tagRECT;
-//		// 使用 GetClientRect 而非 GetWindowRect
-//		GetClientRect(hWnd, rect);
-//		int nWindowWidth = rect->right - rect->left;
-//		int nWindowHeight = rect->bottom - rect->top;
-//		//DP2("%d %d\n", nWindowWidth, nWindowHeight);
-//		double fWidthTimes = (double)nWindowWidth / imgdoc1->img.cols;
-//		double fHeightTimes = (double)nWindowHeight / imgdoc1->img.rows;
-//
-//		DP2("bili %f %f\n", fWidthTimes, fHeightTimes);
-//		int nBeginWidth, nBeginHeight, nWidth, nHeight;
-//		if (fWidthTimes > fHeightTimes) {
-//			// Width加黑边
-//			nWidth = (int)(fHeightTimes * imgdoc1->img.cols);
-//			nBeginWidth = (nWindowWidth - nWidth) >> 1;
-//			nHeight = nWindowHeight;
-//			nBeginHeight = 0;
-//		}
-//		else {
-//			// Height加黑边
-//			nHeight = (int)(fWidthTimes * imgdoc1->img.rows);
-//			nBeginHeight = (nWindowHeight - nHeight) >> 1;
-//			nWidth = nWindowWidth;
-//			nBeginWidth = 0;
-//		}
-//		imgdoc1->setOutputSize(nWidth, nHeight);
-//		imgdoc1->imageResize();
-//		// 这里要set不可以用change？
-//		imgdoc1->setBMI();
-//		//DP3("%d %d %d\n", nBeginHeight, nWidth,nHeight);
-//		//DP2("%d %d\n", imgdoc1->img.cols, imgdoc1->img.rows);
-//
-//		//StretchDIBits(
-//		//	dc,
-//		//	0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
-//		//	0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
-//		//	imgdoc1->img.data,
-//		//	imgdoc1->bmi,
-//		//	DIB_RGB_COLORS,
-//		//	SRCCOPY
-//		//);
-//		StretchDIBits(
-//			dc,
-//			nBeginWidth, nBeginHeight, nWidth, nHeight,
-//			0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
-//			//0, 0, nWidth, nHeight,
-//			imgdoc1->img.data,
-//			imgdoc1->bmi,
-//			DIB_RGB_COLORS,
-//			SRCCOPY
-//		);
-//
-//	}
-//}
 
 // “关于”框的消息处理程序。
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -519,7 +422,6 @@ bool OpenVideoFile(HWND hWnd, LPWSTR* fn)
 	HRESULT SetFileTypes(UINT cFileTypes, const COMDLG_FILTERSPEC * rgFilterSpec);
 	hr = pfd->SetFileTypes(ARRAYSIZE(rgSpec), rgSpec);
 	hr = pfd->SetFileTypeIndex(1);
-
 	hr = pfd->Show(hWnd);///显示打开文件对话框
 
 	IShellItem* pShellItem = NULL;
@@ -553,6 +455,72 @@ std::string WCHAR2String(LPCWSTR pwszSrc)
 
 	return strTmp;
 }
-//————————————————
-//版权声明：本文为CSDN博主「kingkee」的原创文章，遵循CC 4.0 BY - SA版权协议，转载请附上原文出处链接及本声明。
-//原文链接：https ://blog.csdn.net/kingkee/java/article/details/98115024
+
+void CatchCommandAbout(HWND hWnd)
+{
+	DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+}
+
+void CatchCommandExit(HWND hWnd)
+{
+	DestroyWindow(hWnd);
+}
+
+void CatchCommandOpen(HWND hWnd, VideoManager* vm, ImageDoc* imgd)
+{
+	WCHAR* fn = (WCHAR*)vm->vidName;
+	if (OpenVideoFile(hWnd, &fn))
+	{
+		//img = cv::imread(WCHAR2String(fn));
+		bool opened = vm->vidCap.open(WCHAR2String(fn));
+		if (opened)
+		{
+			// ImgDoc构造内容
+			//vidm1->vidCap >> img; //获取第一帧图像并显示
+			vm->vidCap >> imgd->img;  // 获取第一帧图象
+			//imgdoc1->setBMI();
+			//CatchSize(hWnd);
+			//imgdoc1->imageConvert();
+			if (imgd->img.empty() == false)
+			{
+				imgd->imageConvert();
+				if (imgd->vidEffect == VideoEffect::edge)
+				{
+					cv::Mat edgeY, edgeX;
+					cv::Sobel(imgd->img, edgeY, CV_8U, 1, 0);
+					cv::Sobel(imgd->img, edgeX, CV_8U, 0, 1);
+					imgd->img = edgeX + edgeY;
+				}
+				CatchSize(hWnd);
+				InvalidateRect(hWnd, NULL, false);
+			}
+			////激发WM_PAINT时间，让窗口重绘
+			//InvalidateRect(hWnd, NULL, false);
+		}
+		else
+		{
+			MessageBox(
+				hWnd,
+				L"视频未能打开",
+				L"错误提示",
+				MB_OK
+			);
+		}
+	}
+}
+
+void CatchCommandPlay(HWND hWnd)
+{
+	vidm1->vidState = PlayState::playing;
+}
+
+void CatchCommandPause(HWND hWnd)
+{
+	vidm1->vidState = PlayState::paused;
+}
+
+void CatchCommandStop(HWND hWnd)
+{
+	vidm1->vidState = PlayState::stopped;
+	vidm1->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+}

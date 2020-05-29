@@ -58,7 +58,7 @@ BEGIN
     END
     POPUP "滤镜效果"
     BEGIN
-        MENUITEM "无效果",                         IDM_EFFECT_EDGE
+        MENUITEM "无效果",                         IDM_EFFECT_NONE
         MENUITEM "边缘图效果",                       IDM_EFFECT_EDGE
         MENUITEM "高斯模糊",                        IDM_EFFECT_GAUSSIAN
     END
@@ -68,7 +68,7 @@ BEGIN
     END
     POPUP "播放方式"
     BEGIN
-        MENUITEM "循环播放",                        ID_32787
+        MENUITEM "循环播放",                        IDM_CIRCLE
     END
 END
 

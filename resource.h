@@ -21,16 +21,10 @@
 #define IDM_PAUSE_VID                   32777
 #define ID_32778                        32778
 #define IDM_STOP_VID                    32779
-#define ID_32780                        32780
-#define IDM_EDGE_EFFECT                 32781
-#define ID_32782                        32782
-#define IDM__NO_EFFECT                  32783
-#define IDM_NO_EFFECT                   32784
-#define DM_EDGE_GAUSSIAN                32785
-#define ID_32786                        32786
-#define ID_32787                        32787
 #define IDM_EFFECT_GAUSSIAN             32788
 #define IDM_EFFECT_EDGE                 32789
+#define IDM_EFFECT_NONE                 32790
+#define IDM_CIRCLE                      32791
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -39,7 +33,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        129
-#define _APS_NEXT_COMMAND_VALUE         32790
+#define _APS_NEXT_COMMAND_VALUE         32792
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
