@@ -25,6 +25,14 @@
 #define IDM_EFFECT_EDGE                 32789
 #define IDM_EFFECT_NONE                 32790
 #define IDM_CIRCLE                      32791
+#define ID_32792                        32792
+#define ID_32793                        32793
+#define ID_32794                        32794
+#define ID_32795                        32795
+#define IDM_DRAW_LINE                   32796
+#define IDM_DRAW_RECT                   32797
+#define IDM_DRAW_ELLIPSE                32798
+#define IDM_DRAW_CLEAR                  32799
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -33,7 +41,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        129
-#define _APS_NEXT_COMMAND_VALUE         32792
+#define _APS_NEXT_COMMAND_VALUE         32800
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

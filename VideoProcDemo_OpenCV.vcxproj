@@ -158,6 +158,7 @@
   <ItemGroup>
     <ClInclude Include="framework.h" />
     <ClInclude Include="DataNode.h" />
+    <ClInclude Include="PaintData.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="VideoData.h" />
@@ -166,6 +167,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DataNode.cpp" />
+    <ClCompile Include="PaintData.cpp" />
     <ClCompile Include="VideoData.cpp" />
     <ClCompile Include="VideoManager.cpp" />
     <ClCompile Include="VideoProcDemo_OpenCV.cpp" />

@@ -7,6 +7,7 @@
 //#include "DataNode.h"
 #include "VideoData.h"
 #include "VideoManager.h"
+#include "PaintData.h"
 #include <windowsx.h>
 
 #include "opencv2/opencv.hpp" 
@@ -29,20 +30,16 @@ HINSTANCE hInst;                                // 当前实例
 WCHAR szTitle[MAX_LOADSTRING];                  // 标题栏文本
 WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 
+// 鼠标指点
+static POINT ptBegin;
+static POINT ptEnd;
+static PAINT_TYPE ptType = PAINT_TYPE::TYPE_NONE;
 
 //DataNode* imgdoc1, * imgdoc2;
 VideoData* coreData;
 VideoManager* vidm1, * vidm2;
-//cv::Mat img;
+PaintData* paintData;
 
-
-//WCHAR FileNameOfVideo1[1024];                   // 视频1的文件路径和文件名
-//cv::VideoCapture vidm1->vidCap;                       // 视频1的读取器
-//enum PlayState
-//{
-//	playing, paused, stopped
-//};
-//PlayState vidm1->vidState = PlayState::stopped;       // 播放状态     
 
 
 // 此代码模块中包含的函数的前向声明:
@@ -57,12 +54,15 @@ std::string WCHAR2String(LPCWSTR pwszSrc);
 // 双缓存绘制
 void DoubleBufferPaint(HWND hWnd, HDC dc);
 void DirectPaint(HWND hWnd, HDC dc);
+// 鼠标事件
+void CatchLBDown(HWND hWnd, LPARAM lParam);
+void CatchLBUp(HWND hWnd, LPARAM lParam);
 
 // 相应函数
 void CatchSize(HWND hWnd);
 void CatchTimer(HWND hWnd);
 void CatchPaint(HWND hWnd);
-void CatchExit(HWND hWnd);
+void CatchDestroy(HWND hWnd);
 // 菜单栏
 void CatchCommandAbout(HWND hWnd);
 void CatchCommandExit(HWND hWnd);
@@ -70,6 +70,10 @@ void CatchCommandOpen(HWND hWnd, VideoManager*, DataNode*);
 void CatchCommandPlay(HWND hWnd);
 void CatchCommandPause(HWND hWnd);
 void CatchCommandStop(HWND hWnd);
+void CatchCommandLine();
+void CatchCommandRect();
+void CatchCommandEllipse();
+void CatchCommandDrawClear();
 
 
 
@@ -95,6 +99,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	coreData = new VideoData();
 	vidm1 = new VideoManager();
 	vidm2 = new VideoManager();
+	paintData = new PaintData();
+#ifdef _DEBUG
+	DP1("paintData size=%d\n", paintData->getSize());
+#endif // _DEBUG
 
 	// 执行应用程序初始化:
 	if (!InitInstance(hInstance, nCmdShow))
@@ -195,7 +203,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_COMMAND:
 	{
-		//WCHAR* fn = (WCHAR*)vidm1->vidName;
+		// 菜单消息
+		// WCHAR* fn = (WCHAR*)vidm1->vidName;
 		int wmId = LOWORD(wParam);
 		// 分析菜单选择:
 		switch (wmId)
@@ -212,6 +221,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_OPEN_VID2:
 			CatchCommandOpen(hWnd, vidm2, coreData->vidNode2);
 			break;
+			//	视频播放菜单
 		case IDM_PLAY_VID:
 			CatchCommandPlay(hWnd);
 			break;
@@ -221,17 +231,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_STOP_VID:
 			CatchCommandStop(hWnd);
 			break;
+			// 视频滤镜菜单
 		case IDM_EFFECT_NONE:
 			coreData->vidNode1->vidEffect = VideoEffect::no;
 			break;
 		case IDM_EFFECT_EDGE:
 			coreData->vidNode1->vidEffect = VideoEffect::edge;
 			break;
+		case IDM_DRAW_LINE:
+			CatchCommandLine();
+			break;
+		case IDM_DRAW_ELLIPSE:
+			CatchCommandEllipse();
+			break;
+		case IDM_DRAW_RECT:
+			CatchCommandRect();
+			break;
+		case IDM_DRAW_CLEAR:
+			CatchCommandDrawClear();
+			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
+		break;
+		// 计时器消息
 	}
-	break;
 	case WM_TIMER:
 		CatchTimer(hWnd);
 		break;
@@ -242,7 +266,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		CatchSize(hWnd);
 		break;
 	case WM_DESTROY:
-		CatchExit(hWnd);
+		CatchDestroy(hWnd);
+		break;
+		// 鼠标单击 绘图相关
+	case WM_LBUTTONDOWN:
+		CatchLBDown(hWnd, lParam);
+		break;
+	case WM_LBUTTONUP:
+		CatchLBUp(hWnd, lParam);
+		break;
+		// 鼠标双击 移动相关？
+	case WM_LBUTTONDBLCLK:
 		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -282,7 +316,7 @@ void CatchSize(HWND hWnd) {
 		}
 
 
-		
+
 		coreData->vidNode1->setBeginSize(nBeginWidth, nBeginHeight);
 		coreData->vidNode1->setOutputSize(nWidth, nHeight);
 		// 连锁绑定 当改变大小的时候
@@ -309,8 +343,8 @@ void CatchSize(HWND hWnd) {
 		}
 		else {
 			// Height加黑边
-			nHeight = (int)(ftimes*fWidthTimes * coreData->vidNode2->img.rows);
-			nWidth = (int)(ftimes* nWindowWidth);
+			nHeight = (int)(ftimes * fWidthTimes * coreData->vidNode2->img.rows);
+			nWidth = (int)(ftimes * nWindowWidth);
 			//nBeginWidth = 0;
 			//nBeginHeight = (nWindowHeight - nHeight) >> 1;
 			nBeginWidth = nWindowWidth - nWidth;
@@ -333,29 +367,29 @@ void CatchSize(HWND hWnd) {
 }
 
 bool LoadVideoImage(VideoManager* vm, DataNode* imd) {
-	if (vm->vidCap.isOpened() && vm->vidState == PlayState::playing)
+	if (vm->vidCap.isOpened() && vm->vidState == PLAY_STATE::PLAYING)
 	{
 		vm->vidCap >> imd->img;
 #ifdef _DEBUG
 		DP0("Load Image\n")
 #endif // _DEBUG
 
-		if (imd->img.empty() == false)
-		{
-
-			imd->imageConvert();
-			if (imd->vidEffect == VideoEffect::edge)
+			if (imd->img.empty() == false)
 			{
-				cv::Mat edgeY, edgeX;
-				cv::Sobel(imd->img, edgeY, CV_8U, 1, 0);
-				cv::Sobel(imd->img, edgeX, CV_8U, 0, 1);
-				imd->img = edgeX + edgeY;
-			}
+
+				imd->imageConvert();
+				if (imd->vidEffect == VideoEffect::edge)
+				{
+					cv::Mat edgeY, edgeX;
+					cv::Sobel(imd->img, edgeY, CV_8U, 1, 0);
+					cv::Sobel(imd->img, edgeX, CV_8U, 0, 1);
+					imd->img = edgeX + edgeY;
+				}
 #ifdef _DEBUG
-			DP0("Load Success\n");
+				DP0("Load Success\n");
 #endif // _DEBUG
-			return true;
-		}
+				return true;
+			}
 		return false;
 	}
 	return false;
@@ -384,7 +418,7 @@ void CatchPaint(HWND hWnd)
 	EndPaint(hWnd, &ps);
 }
 
-void CatchExit(HWND hWnd)
+void CatchDestroy(HWND hWnd)
 {
 	PostQuitMessage(0);
 }
@@ -476,8 +510,63 @@ void DirectPaint(HWND hWnd, HDC dc) {
 			DIB_RGB_COLORS,
 			SRCCOPY
 		);
+	}
+	// 绘制PaintData
+	for (int i = 0; i < paintData->getSize(); i++) {
+		PaintNode tmp = paintData->getNode(i);
+		switch (tmp.ptType)
+		{
+		case PAINT_TYPE::TYPE_LINE:
+			MoveToEx(dc, tmp.ptBegin.x, tmp.ptBegin.y, NULL);
+			LineTo(dc, tmp.ptEnd.x, tmp.ptEnd.y);
+			break;
+		case PAINT_TYPE::TYPE_RECT:
+			Rectangle(dc, tmp.ptBegin.x, tmp.ptBegin.y, tmp.ptEnd.x, tmp.ptEnd.y);
+			break;
+		case PAINT_TYPE::TYPE_ELLIPSE:
+			Ellipse(dc, tmp.ptBegin.x, tmp.ptBegin.y, tmp.ptEnd.x, tmp.ptEnd.y);
+			break;
+		default:
+			break;
+		}
+
 
 	}
+}
+
+void CatchLBDown(HWND hWnd, LPARAM lParam)
+{
+	ptBegin.x = LOWORD(lParam);
+	ptBegin.y = LOWORD(lParam);
+}
+
+void CatchLBUp(HWND hWnd, LPARAM lParam)
+{
+	ptEnd.x = LOWORD(lParam);
+	ptEnd.y = LOWORD(lParam);
+	if (ptType != PAINT_TYPE::TYPE_NONE) {
+		paintData->pushNode(PaintNode(ptBegin, ptEnd, ptType));
+		DP3("so add Node beginx=%ld endx=%ld type=%d\n", ptBegin.x, ptEnd.x, ptType);
+	}
+	// 感觉这里是绘制部分
+	//HDC hdc = GetDC(hWnd);
+	//switch (ptType)
+	//{
+	//case PAINT_TYPE::LINE:
+	//	MoveToEx(hdc, ptBegin.x, ptBegin.y, NULL);
+	//	LineTo(hdc, ptEnd.x, ptEnd.y);
+	//	break;
+	//case PAINT_TYPE::RECT:
+	//	Rectangle(hdc, ptBegin.x, ptBegin.y, ptEnd.x, ptEnd.y);
+	//	break;
+	//case PAINT_TYPE::ELLUPS:
+	//	Ellipse(hdc, ptBegin.x, ptBegin.y, ptEnd.x, ptEnd.y);
+	//	break;
+	//default:
+	//	break;
+	//}
+
+
 }
 
 // “关于”框的消息处理程序。
@@ -616,20 +705,45 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, DataNode* imgd)
 
 void CatchCommandPlay(HWND hWnd)
 {
-	vidm1->vidState = PlayState::playing;
-	vidm2->vidState = PlayState::playing;
+	vidm1->vidState = PLAY_STATE::PLAYING;
+	vidm2->vidState = PLAY_STATE::PLAYING;
 }
 
 void CatchCommandPause(HWND hWnd)
 {
-	vidm1->vidState = PlayState::paused;
-	vidm2->vidState = PlayState::paused;
+	vidm1->vidState = PLAY_STATE::PAUSED;
+	vidm2->vidState = PLAY_STATE::PAUSED;
 }
 
 void CatchCommandStop(HWND hWnd)
 {
-	vidm1->vidState = PlayState::stopped;
+	vidm1->vidState = PLAY_STATE::STOPPED;
 	vidm1->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
-	vidm2->vidState = PlayState::stopped;
+	vidm2->vidState = PLAY_STATE::STOPPED;
 	vidm2->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+}
+
+void CatchCommandLine()
+{
+	ptType = PAINT_TYPE::TYPE_LINE;
+#ifdef _DEBUG
+	DP0("TYPE_LINE\n");
+#endif // _DEBUG
+
+}
+
+void CatchCommandRect()
+{
+	ptType = PAINT_TYPE::TYPE_RECT;
+}
+
+void CatchCommandEllipse()
+{
+	ptType = PAINT_TYPE::TYPE_ELLIPSE;
+}
+
+void CatchCommandDrawClear()
+{
+	ptType = PAINT_TYPE::TYPE_NONE;
+	paintData->clear();
 }
