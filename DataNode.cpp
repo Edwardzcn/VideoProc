@@ -1,34 +1,30 @@
-#include "ImageDoc.h"
+#include "DataNode.h"
 
-ImageDoc::ImageDoc()
+DataNode::DataNode()
 {
 	this->vidEffect = VideoEffect::no;
 }
 
-ImageDoc::~ImageDoc()
+DataNode::~DataNode()
 {
 	delete this->bmi;
 }
 
-void ImageDoc::setClientSize(int nw, int nh)
-{
-	this->nClientWidth = nw;
-	this->nClientHeight = nh;
-}
 
-void ImageDoc::setBeginSize(int nw, int nh)
+
+void DataNode::setBeginSize(int nw, int nh)
 {
 	this->nBeginWidth = nw;
 	this->nBeginHeight = nh;
 }
 
-void ImageDoc::setOutputSize(int nw,int nh)
+void DataNode::setOutputSize(int nw,int nh)
 {
 	this->outputWidth = nw;
 	this->outputHeight = nh;
 }
 
-void ImageDoc::setBMI()
+void DataNode::setBMI()
 {
 
 	int pixelBytes = this->img.channels() * (this->img.depth() + 1); // 计算一个像素多少个字节
@@ -47,25 +43,25 @@ void ImageDoc::setBMI()
 
 }
 
-void ImageDoc::changeBMI()
+void DataNode::changeBMI()
 {
 	this->bmi->bmiHeader.biWidth = this->img.cols;
 	this->bmi->bmiHeader.biHeight = -this->img.rows;
 }
 
-void ImageDoc::deleteBMI()
+void DataNode::deleteBMI()
 {
 	delete this->bmi;
 }
 
 
-void ImageDoc::imageResize() {
+void DataNode::imageResize() {
 	cv::Mat dst;
 	cv::resize(this->img, dst, cv::Size(this->outputWidth, this->outputHeight));
 	this->img = dst;
 }
 
-void ImageDoc::imageConvert()
+void DataNode::imageConvert()
 {
 	switch (this->img.channels())
 	{
