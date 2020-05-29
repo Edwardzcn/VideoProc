@@ -7,7 +7,10 @@
 
 enum VideoEffect
 {
-	no, edge
+	EFFECT_NONE,
+	EFFECT_COLOREDGE,
+	EFFECT_GRAYEDGE,
+	EFFECT_GAUSSIAN
 };
 
 class DataNode
@@ -25,6 +28,7 @@ public: // create from serialization only
 	void deleteBMI();
 	void imageResize();
 	void imageConvert();
+	void imageConvert(cv::ColorConversionCodes code);
 	cv::Mat img;
 	//BITMAPINFO bmi;
 	BITMAPINFO* bmi;

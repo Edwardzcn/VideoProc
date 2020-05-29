@@ -59,7 +59,8 @@ BEGIN
     POPUP "滤镜效果"
     BEGIN
         MENUITEM "无效果",                         IDM_EFFECT_NONE
-        MENUITEM "边缘图效果",                       IDM_EFFECT_EDGE
+        MENUITEM "彩色边缘图效果",                     IDM_EFFECT_COLOREDGE
+        MENUITEM "黑白边缘图效果",                     IDM_EFFECT_GRAYEDGE
         MENUITEM "高斯模糊",                        IDM_EFFECT_GAUSSIAN
     END
     POPUP "帮助(&H)"
@@ -68,7 +69,8 @@ BEGIN
     END
     POPUP "播放方式"
     BEGIN
-        MENUITEM "循环播放",                        IDM_CIRCLE
+        MENUITEM "循环播放",                        IDM_LOOP
+        MENUITEM "非循环播放",                       IDM_UNLOOP
     END
     POPUP "图形绘制"
     BEGIN
@@ -76,6 +78,11 @@ BEGIN
         MENUITEM "矩形",                          IDM_DRAW_RECT
         MENUITEM "椭圆",                          IDM_DRAW_ELLIPSE
         MENUITEM "清空",                          IDM_DRAW_CLEAR
+    END
+    POPUP "移动摄像头"
+    BEGIN
+        MENUITEM "移动",                          IDM_MOVE
+        MENUITEM "复位",                          IDM_RESET
     END
 END
 

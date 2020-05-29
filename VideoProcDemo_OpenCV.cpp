@@ -34,6 +34,13 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // 主窗口类名
 static POINT ptBegin;
 static POINT ptEnd;
 static PAINT_TYPE ptType = PAINT_TYPE::TYPE_NONE;
+// 小窗口平移位置
+int deltax = 0;
+int deltay = 0;
+
+// 循环播放标记
+bool isLoop = false;
+bool isMove = false;
 
 //DataNode* imgdoc1, * imgdoc2;
 VideoData* coreData;
@@ -63,18 +70,27 @@ void CatchSize(HWND hWnd);
 void CatchTimer(HWND hWnd);
 void CatchPaint(HWND hWnd);
 void CatchDestroy(HWND hWnd);
-// 菜单栏
+// 菜单栏——播放相关
 void CatchCommandAbout(HWND hWnd);
 void CatchCommandExit(HWND hWnd);
 void CatchCommandOpen(HWND hWnd, VideoManager*, DataNode*);
 void CatchCommandPlay(HWND hWnd);
 void CatchCommandPause(HWND hWnd);
 void CatchCommandStop(HWND hWnd);
+// 菜单栏——绘图相关
 void CatchCommandLine();
 void CatchCommandRect();
 void CatchCommandEllipse();
 void CatchCommandDrawClear();
-
+// 菜单栏——循环相关
+void CatchCommandLoop();
+void CatchCommandUnloop();
+// 菜单栏——效果相关
+void CatchCommandEffectNone();
+void CatchCommandEffectEdge(VideoEffect efct);
+// 菜单栏——移动相关
+void CatchCommandMove();
+void CatchCommandResetMove();
 
 
 
@@ -231,13 +247,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_STOP_VID:
 			CatchCommandStop(hWnd);
 			break;
-			// 视频滤镜菜单
+			// 视频滤镜菜单 
+			// 调整小画面
 		case IDM_EFFECT_NONE:
-			coreData->vidNode1->vidEffect = VideoEffect::no;
+			CatchCommandEffectNone();
 			break;
-		case IDM_EFFECT_EDGE:
-			coreData->vidNode1->vidEffect = VideoEffect::edge;
+		case IDM_EFFECT_GRAYEDGE:
+			CatchCommandEffectEdge(VideoEffect::EFFECT_GRAYEDGE);
 			break;
+		case IDM_EFFECT_COLOREDGE:
+			CatchCommandEffectEdge(VideoEffect::EFFECT_COLOREDGE);
+			break;
+			// 绘制相关
 		case IDM_DRAW_LINE:
 			CatchCommandLine();
 			break;
@@ -249,6 +270,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case IDM_DRAW_CLEAR:
 			CatchCommandDrawClear();
+			break;
+			// 循环相关
+		case IDM_LOOP:
+			CatchCommandLoop();
+			break;
+		case IDM_UNLOOP:
+			CatchCommandUnloop();
+			break;
+			// 移动相关
+		case IDM_MOVE:
+			CatchCommandMove();
+			break;
+		case IDM_RESET:
+			CatchCommandResetMove();
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
@@ -370,27 +405,19 @@ bool LoadVideoImage(VideoManager* vm, DataNode* imd) {
 	if (vm->vidCap.isOpened() && vm->vidState == PLAY_STATE::PLAYING)
 	{
 		vm->vidCap >> imd->img;
-#ifdef _DEBUG
-		DP0("Load Image\n")
-#endif // _DEBUG
-
-			if (imd->img.empty() == false)
-			{
-
-				imd->imageConvert();
-				if (imd->vidEffect == VideoEffect::edge)
-				{
-					cv::Mat edgeY, edgeX;
-					cv::Sobel(imd->img, edgeY, CV_8U, 1, 0);
-					cv::Sobel(imd->img, edgeX, CV_8U, 0, 1);
-					imd->img = edgeX + edgeY;
-				}
-#ifdef _DEBUG
-				DP0("Load Success\n");
-#endif // _DEBUG
-				return true;
-			}
-		return false;
+		if (imd->img.empty() == false){
+			return true;
+		}
+		else if (isLoop) {
+			// 循环播放 重设manager标记
+			vm->vidCap.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
+			vm->vidCap >> imd->img;
+			return true;
+		}
+		else {
+			vm->vidState = PLAY_STATE::STOPPED;
+			return false;
+		}
 	}
 	return false;
 }
@@ -452,17 +479,9 @@ void DoubleBufferPaint(HWND hWnd, HDC dc) {
 void DirectPaint(HWND hWnd, HDC dc) {
 	if (coreData->vidNode1->img.rows > 0)
 	{
-		//// 这里要set不可以用change
 		coreData->vidNode1->imageResize();
+		coreData->vidNode1->imageConvert();
 		coreData->vidNode1->setBMI();
-		//coreData->vidNode2->imageResize();
-		//coreData->vidNode2->setBMI();
-
-#ifdef _DEBUG
-		DP2("img1 opw=%d oph%d\n", coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight);
-#endif // DEBUG
-
-
 		StretchDIBits(
 			dc,
 			coreData->vidNode1->nBeginWidth, coreData->vidNode1->nBeginHeight, coreData->vidNode1->outputWidth, coreData->vidNode1->outputHeight,
@@ -477,16 +496,27 @@ void DirectPaint(HWND hWnd, HDC dc) {
 	}
 	if (coreData->vidNode2->img.rows > 0)
 	{
-		//// 这里要set不可以用change
-		//coreData->vidNode1->imageResize();
-		//coreData->vidNode1->setBMI();
 		coreData->vidNode2->imageResize();
+		if (coreData->vidNode2->vidEffect == VideoEffect::EFFECT_GRAYEDGE)
+		{
+			cv::Mat edgeY, edgeX;
+			coreData->vidNode2->imageConvert(cv::COLOR_BGR2GRAY);
+			cv::Sobel(coreData->vidNode2->img, edgeY, CV_8U, 1, 0);
+			cv::Sobel(coreData->vidNode2->img, edgeX, CV_8U, 0, 1);
+			coreData->vidNode2->img = edgeX + edgeY;
+			coreData->vidNode2->imageConvert(cv::COLOR_GRAY2BGRA);
+		}
+		else if (coreData->vidNode2->vidEffect == VideoEffect::EFFECT_COLOREDGE) {
+			cv::Mat edgeY, edgeX;
+			cv::Sobel(coreData->vidNode2->img, edgeY, CV_8U, 1, 0);
+			cv::Sobel(coreData->vidNode2->img, edgeX, CV_8U, 0, 1);
+			coreData->vidNode2->img = edgeX + edgeY;
+			coreData->vidNode2->imageConvert(cv::COLOR_BGR2BGRA);
+		}
+		else if (coreData->vidNode2->vidEffect == VideoEffect::EFFECT_NONE) {
+			coreData->vidNode2->imageConvert(cv::COLOR_BGR2BGRA);
+		}
 		coreData->vidNode2->setBMI();
-
-#ifdef _DEBUG
-		DP2("img2 opw=%d oph%d\n", coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight);
-#endif // DEBUG
-
 
 		//StretchDIBits(
 		//	dc,
@@ -501,7 +531,7 @@ void DirectPaint(HWND hWnd, HDC dc) {
 		//);
 		StretchDIBits(
 			dc,
-			coreData->vidNode2->nBeginWidth, coreData->vidNode2->nBeginHeight, coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight,
+			coreData->vidNode2->nBeginWidth+deltax, coreData->vidNode2->nBeginHeight+deltay, coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight,
 			//coreData->vidNode2->nClientWidth-300,0,300,200,
 			0, 0, coreData->vidNode2->outputWidth, coreData->vidNode2->outputHeight,
 			//0,0,500,500,
@@ -537,34 +567,22 @@ void DirectPaint(HWND hWnd, HDC dc) {
 void CatchLBDown(HWND hWnd, LPARAM lParam)
 {
 	ptBegin.x = LOWORD(lParam);
-	ptBegin.y = LOWORD(lParam);
+	ptBegin.y = HIWORD(lParam);
 }
 
 void CatchLBUp(HWND hWnd, LPARAM lParam)
 {
 	ptEnd.x = LOWORD(lParam);
-	ptEnd.y = LOWORD(lParam);
+	ptEnd.y = HIWORD(lParam);
 	if (ptType != PAINT_TYPE::TYPE_NONE) {
 		paintData->pushNode(PaintNode(ptBegin, ptEnd, ptType));
 		DP3("so add Node beginx=%ld endx=%ld type=%d\n", ptBegin.x, ptEnd.x, ptType);
 	}
-	// 感觉这里是绘制部分
-	//HDC hdc = GetDC(hWnd);
-	//switch (ptType)
-	//{
-	//case PAINT_TYPE::LINE:
-	//	MoveToEx(hdc, ptBegin.x, ptBegin.y, NULL);
-	//	LineTo(hdc, ptEnd.x, ptEnd.y);
-	//	break;
-	//case PAINT_TYPE::RECT:
-	//	Rectangle(hdc, ptBegin.x, ptBegin.y, ptEnd.x, ptEnd.y);
-	//	break;
-	//case PAINT_TYPE::ELLUPS:
-	//	Ellipse(hdc, ptBegin.x, ptBegin.y, ptEnd.x, ptEnd.y);
-	//	break;
-	//default:
-	//	break;
-	//}
+	else if (isMove == true) {
+		// 小视频窗口移动状态
+		deltax += ptEnd.x - ptBegin.x;
+		deltay += ptEnd.y - ptBegin.y;
+	}
 
 
 }
@@ -677,7 +695,7 @@ void CatchCommandOpen(HWND hWnd, VideoManager* vm, DataNode* imgd)
 			if (imgd->img.empty() == false)
 			{
 				imgd->imageConvert();
-				if (imgd->vidEffect == VideoEffect::edge)
+				if (imgd->vidEffect == VideoEffect::EFFECT_COLOREDGE)
 				{
 					cv::Mat edgeY, edgeX;
 					cv::Sobel(imgd->img, edgeY, CV_8U, 1, 0);
@@ -746,4 +764,36 @@ void CatchCommandDrawClear()
 {
 	ptType = PAINT_TYPE::TYPE_NONE;
 	paintData->clear();
+}
+
+void CatchCommandLoop()
+{
+	isLoop = true;
+}
+
+void CatchCommandUnloop()
+{
+	isLoop = false;
+}
+
+void CatchCommandEffectNone()
+{
+	coreData->vidNode2->vidEffect = VideoEffect::EFFECT_NONE;
+}
+
+void CatchCommandEffectEdge(VideoEffect efct)
+{
+	coreData->vidNode2->vidEffect = efct;
+}
+
+void CatchCommandMove()
+{
+	isMove = true;
+}
+
+void CatchCommandResetMove()
+{
+	isMove = false;
+	deltax = 0;
+	deltay = 0;
 }
