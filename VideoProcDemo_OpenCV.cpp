@@ -38,7 +38,11 @@ enum PlayState
 	playing, paused, stopped
 };
 PlayState playState = PlayState::stopped;       // 播放状态     
-
+enum VideoEffect
+{
+	no, edge
+};
+VideoEffect vidEffect = VideoEffect::no;        // 视频画面效果
 
 // 此代码模块中包含的函数的前向声明:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -49,20 +53,7 @@ bool OpenVideoFile(HWND hWnd, LPWSTR* fn);
 std::string WCHAR2String(LPCWSTR pwszSrc);
 
 
-// 双缓存绘制
-void DoubleBufferPaint(HWND hWnd, HDC dc);
-void DirectPaint(HWND hWnd, HDC dc);
-
-// 消息相应函数
-// 函数封装
-void CatchTimer(HWND hWnd);
-void CatchPaint(HWND hWnd);
-void CatchSizeChange(HWND hWnd);
-void CatchDestroy(HWND hWnd);
-// 菜单栏
-void CatchCommandAbout();
-void CatchCommandExit();
-void CatchCommandOpen();
+void CenterPaint(HWND hWnd, HDC dc);
 
 
 
@@ -176,9 +167,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  WM_PAINT    - 绘制主窗口
 //  WM_DESTROY  - 发送退出消息并返回
 //  WM_TIMER    - 定时器消息
-//  WM_SIZE		- 窗口大小变化消息
-
-
+//
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	WCHAR* fn = (WCHAR*)FileNameOfVideo1;
@@ -209,20 +198,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					// ImgDoc构造内容
 					//VidCap1 >> img; //获取第一帧图像并显示
 					VidCap1 >> imgdoc1->img;  // 获取第一帧图象
-					//imgdoc1->setBMI();
-					//CatchSizeChange(hWnd);
-					//imgdoc1->imageConvert();
+					imgdoc1->setBMI();
 					if (imgdoc1->img.empty() == false)
 					{
-						imgdoc1->imageConvert();
-						if (imgdoc1->vidEffect == VideoEffect::edge)
+						if (vidEffect == VideoEffect::edge)
 						{
 							cv::Mat edgeY, edgeX;
 							cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
 							cv::Sobel(imgdoc1->img, edgeX, CV_8U, 0, 1);
 							imgdoc1->img = edgeX + edgeY;
 						}
-						CatchSizeChange(hWnd);
+
 						InvalidateRect(hWnd, NULL, false);
 					}
 					////激发WM_PAINT时间，让窗口重绘
@@ -250,10 +236,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			VidCap1.set(cv::VideoCaptureProperties::CAP_PROP_POS_FRAMES, 0);
 			break;
 		case IDM_NO_EFFECT:
-			imgdoc1->vidEffect = VideoEffect::no;
+			vidEffect = VideoEffect::no;
 			break;
 		case IDM_EDGE_EFFECT:
-			imgdoc1->vidEffect = VideoEffect::edge;
+			vidEffect = VideoEffect::edge;
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
@@ -267,9 +253,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			VidCap1 >> imgdoc1->img;
 			if (imgdoc1->img.empty() == false)
 			{
-
-				imgdoc1->imageConvert();
-				if (imgdoc1->vidEffect == VideoEffect::edge)
+				if (vidEffect == VideoEffect::edge)
 				{
 					cv::Mat edgeY, edgeX;
 					cv::Sobel(imgdoc1->img, edgeY, CV_8U, 1, 0);
@@ -282,13 +266,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_PAINT:
-		CatchPaint(hWnd);
-		break;
-	case WM_SIZE:
-		CatchSizeChange(hWnd);
-		break;
+	{
+		//DP0("WM_PAINT\n");
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hWnd, &ps);
+		// TODO: 在此处添加使用 hdc 的任何绘图代码...
+		// 还未采用双缓冲
+		CenterPaint(hWnd, hdc);
+		EndPaint(hWnd, &ps);
+	}
+	break;
 	case WM_DESTROY:
-		CatchDestroy(hWnd);
+		PostQuitMessage(0);
 		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -296,31 +285,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-// 哪些在Time里做
-// 哪些在PAINT里做
-
-void CatchPaint(HWND hWnd)
-{
-	PAINTSTRUCT ps;
-	HDC hdc = BeginPaint(hWnd, &ps);
-	// TODO: 在此处添加使用 hdc 的任何绘图代码...
-	// 双缓冲
-	DoubleBufferPaint(hWnd, hdc);
-	// 非双缓冲
-	//DirectPaint(hWnd, hdc);
-	EndPaint(hWnd, &ps);
-}
-
-void CatchSizeChange(HWND hWnd) {
-	//if (VidCap1.isOpened()) {
-	//	imgdoc1->changeBMI();
-	//}
-	if (imgdoc1->img.rows > 0) {
-		// 有图象
+void CenterPaint(HWND hWnd, HDC dc) {
+	if (imgdoc1->img.rows > 0)
+	{
+		switch (imgdoc1->img.channels())
+		{
+		case 1:
+			cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_GRAY2BGR); // GRAY单通道
+			break;
+		case 3:
+			cv::cvtColor(imgdoc1->img, imgdoc1->img, cv::COLOR_BGR2BGRA);  // BGR三通道
+			break;
+		default:
+			break;
+		}
 		// 获取窗口的宽和高度
 		//int nWindowWidth;
 		LPRECT rect = new tagRECT;
-		GetWindowRect(hWnd, rect);
+		// 使用 GetClientRect 而非 GetWindowRect
+		GetClientRect(hWnd, rect);
 		int nWindowWidth = rect->right - rect->left;
 		int nWindowHeight = rect->bottom - rect->top;
 		//DP2("%d %d\n", nWindowWidth, nWindowHeight);
@@ -343,63 +326,25 @@ void CatchSizeChange(HWND hWnd) {
 			nWidth = nWindowWidth;
 			nBeginWidth = 0;
 		}
-		imgdoc1->setClientSize(nWindowWidth, nWindowHeight);
-		imgdoc1->setBeginSize(nBeginWidth, nBeginHeight);
-		imgdoc1->setOutputSize(nWidth, nHeight);
-		// 连锁绑定 当改变大小的时候
-		imgdoc1->imageResize();
-		imgdoc1->setBMI();
-		//imgdoc1->changeBMI();
-		DP0("RESIZE\n");
-		//InvalidateRect(hWnd, NULL, false);
-	}
-}
+		imgdoc1->resize(nWidth, nHeight);
+		imgdoc1->changeBMI();
+		//DP3("%d %d %d\n", nBeginHeight, nWidth,nHeight);
+		//DP2("%d %d\n", imgdoc1->img.cols, imgdoc1->img.rows);
 
-void CatchDestroy(HWND hWnd)
-{
-	PostQuitMessage(0);
-}
-
-void DoubleBufferPaint(HWND hWnd, HDC dc) {
-	// 创建上下文兼容的dc
-	HDC mdc = CreateCompatibleDC(dc);
-	// 这里不大懂  2000*1000 是缓存区的分辨率 
-	HBITMAP hbitmap = CreateCompatibleBitmap(dc, 2000, 1000);
-	SelectObject(mdc, hbitmap);
-	// 向dc绘图
-	DirectPaint(hWnd, mdc);
-	StretchBlt(
-		dc,
-		0, 0, imgdoc1->nClientWidth, imgdoc1->nClientHeight,
-		//0, 0, 500, 500,
-		mdc,
-		0, 0, imgdoc1->nClientWidth, imgdoc1->nClientHeight,
-		//0, 0, 500, 500,
-		SRCCOPY
-	);
-	// 恢复内存原始数据
-	// 删除资源
-	DeleteObject(hbitmap);
-	DeleteDC(mdc);
-}
-
-void DirectPaint(HWND hWnd, HDC dc) {
-	if (imgdoc1->img.rows > 0)
-	{
-		imgdoc1->imageResize();
-		imgdoc1->setBMI();
-
-#ifdef _DEBUG
-		DP2("bili %d %d\n", imgdoc1->outputWidth, imgdoc1->outputHeight);
-#endif // DEBUG
-
-
+		//StretchDIBits(
+		//	dc,
+		//	0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
+		//	0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
+		//	imgdoc1->img.data,
+		//	imgdoc1->bmi,
+		//	DIB_RGB_COLORS,
+		//	SRCCOPY
+		//);
 		StretchDIBits(
 			dc,
-			imgdoc1->nBeginWidth, imgdoc1->nBeginHeight, imgdoc1->outputWidth, imgdoc1->outputHeight,
-			//0,0,500,500,
-			0, 0, imgdoc1->outputWidth, imgdoc1->outputHeight,
-			//0,0,500,500,
+			nBeginWidth, nBeginHeight, nWidth, nHeight,
+			0, 0, imgdoc1->img.cols, imgdoc1->img.rows,
+			//0, 0, nWidth, nHeight,
 			imgdoc1->img.data,
 			imgdoc1->bmi,
 			DIB_RGB_COLORS,
@@ -409,8 +354,7 @@ void DirectPaint(HWND hWnd, HDC dc) {
 	}
 }
 
-
-
+// “关于”框的消息处理程序。
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
@@ -486,3 +430,6 @@ std::string WCHAR2String(LPCWSTR pwszSrc)
 
 	return strTmp;
 }
+//————————————————
+//版权声明：本文为CSDN博主「kingkee」的原创文章，遵循CC 4.0 BY - SA版权协议，转载请附上原文出处链接及本声明。
+//原文链接：https ://blog.csdn.net/kingkee/java/article/details/98115024
